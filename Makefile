@@ -5,6 +5,6 @@ all: rshell.cpp
 	$(CC) $(CFLAGS) -o a.out rshell.cpp
 
 rshell: rshell.cpp 
-	$(CC) $(CFLAGS) -o a.out rshell.cpp
+	cd src; $(CC) $(CFLAGS) -o a.out rshell.cpp
 
 
