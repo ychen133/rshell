@@ -49,7 +49,7 @@ int myShell()
 				stringList.push_back(token);
 			}
 			
-			for(int a = 0; a < stringList.size(); a++)
+			for(unsigned int a = 0; a < stringList.size(); a++)
 			{
 				myCmd[a] = stringList.at(a).c_str();	
 			}
@@ -78,7 +78,7 @@ int myShell()
 		{
 			token.erase(token.end() - 1);
 			stringList.push_back(token);
-			for(int a = 0; a < stringList.size(); a++)
+			for(unsigned int a = 0; a < stringList.size(); a++)
 			{
 				//testing output code below
 				//cout << a << ":" << stringList.at(a) << endl;
@@ -113,7 +113,7 @@ int myShell()
 		//If child succeeds, continue to parent process.
 		else if(token == "&&")
 		{
-			for(int a = 0; a < stringList.size(); a++)
+			for(unsigned int a = 0; a < stringList.size(); a++)
 			{	
 				//cout << a << ":" << stringList.at(a) << endl;
 				myCmd[a] = stringList.at(a).c_str();	
@@ -154,7 +154,7 @@ int myShell()
 		//continues reading.
 		else if(token == "||")
 		{
-			for(int a = 0; a < stringList.size(); a++)
+			for(unsigned int a = 0; a < stringList.size(); a++)
 			{
 				//cout << a << ":" << stringList.at(a) << endl;
 				myCmd[a] = stringList.at(a).c_str();
@@ -180,7 +180,7 @@ int myShell()
 	//Thw while loop naturally stops if there are no more strings to 
 	//read from. So this code here executes whatever is left inside
 	//stringList.
-	for(int a = 0; a < stringList.size(); a++)
+	for(unsigned int a = 0; a < stringList.size(); a++)
 	{
 		myCmd[a] = stringList.at(a).c_str();
 	}
@@ -197,7 +197,7 @@ int myShell()
 	{
 		execvp((const char*)myCmd[0], (char* const*)myCmd);
 	}
-	
+	return 0;	
 }
 
 //This function repeats the myShell() using fork() because myShell()
