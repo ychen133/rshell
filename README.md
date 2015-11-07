@@ -69,4 +69,10 @@ the comment detection code again. The code retains its substr() for getting
 anything before the #. But now it loads contents of stringList into myCmd[]
 and executes if stringList.size() is not 0. NULL is added after stringList's
 contents have been loaded into myCmd. This tell program to where to stop
-reading. Now the comment part of the code works correctly.       
+reading. 
+
+One more correction to the comment detection. If the substring it created is
+equals to "exit" it have the program return 1. This allows the program to
+catch cases like "exit#yolo" or "exit#exit". Hopefully this finishes the 
+comment detection part of the code.
+       

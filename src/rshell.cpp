@@ -44,6 +44,10 @@ int myShell()
 		{
 			token = token.substr(0, found);
 			//cout << "Comment token: " << token << endl;
+			if(token == "exit")
+			{
+				return 1;
+			}
 			if(token.size() != 0)
 			{
 				stringList.push_back(token);
@@ -63,8 +67,7 @@ int myShell()
 		//if token found is "exit", return 1, ending the code
 		//and telling the program to stop prompting the user
 		else if(token == "exit")
-		{
-			//return 0;
+		{		
 			return 1;
 		}
 		//if token string is not empty (to avoid out of bounds
