@@ -8,7 +8,78 @@
 #include<sys/types.h>
 #include<sys/wait.h>
 #include<vector>
+#include<sys/stat.h>
 using namespace std;
+
+//function made to implement the test command functionality
+//returns 0 if test succeeds, 1 otherwise
+int testCall(vector<string> stringList)
+{
+	struct stat buf;
+	string flag;
+	string path;
+	if(stringList.at(0) == "test")
+	{
+		if(stringList.size() == 2)
+		{
+			flag = "-e";
+			path = stringList.at(1);
+		}	
+		else if(stringList.size() == 3)
+		{
+			flag = stringList.at(1);
+			path = stringList.at(2);
+		}
+		else
+		{
+			return 1;
+		}
+	}
+	else if(stringList.at(0) == "[" && stringList.at(stringList.size() - 1) == "]")
+	{
+		if(stringList.size() == 3)
+		{
+			flag = "-e";
+			path = stringList.at(1);
+		}	
+		else if(stringList.size() == 4)
+		{
+			flag = stringList.at(1);
+			path = stringList.at(2);
+		}
+		else
+		{
+			return 1;
+		}
+
+	}
+	//stat() returns 0 or -1
+	//int result;
+	if(flag == "-e")
+	{
+		//if file/dir exists, return 0;
+		int result = stat(path.c_str(), &buf);
+		if(result == -1)
+		{
+			return 1;
+		}
+		return result;
+	}
+	else if(flag == "-f")
+	{
+		//if file/dir is a regular file and exists, return 0, 1 otherwise
+		return !(stat(path.c_str(), &buf) == 0 && S_ISREG(buf.st_mode));
+	}
+	else if(flag == "-d")
+	{
+		//if file/dir is a directory and exists, return 0, 1 otherwise 
+		return !(stat(path.c_str(), &buf) == 0 && S_ISDIR(buf.st_mode));
+	}
+	else
+	{
+		return 1;
+	}
+}
 
 int myShell()
 {	
@@ -32,6 +103,10 @@ int myShell()
 	const char* myCmd[50]; 
 	//found is used to detect # for comments	
 	size_t found;	
+	//a flag to tell program to either run command or not
+	bool prevState = true;
+	bool revert = false;
+	bool prevOR = false;
 	
 	//while loop reads a string into token one at a time
 	while(ss >> token)
@@ -52,18 +127,26 @@ int myShell()
 			{
 				stringList.push_back(token);
 			}
-			
-			for(unsigned int a = 0; a < stringList.size(); a++)
+			if(stringList.at(0) == "test" || (stringList.at(0) == "[" && stringList.at(stringList.size() - 1) == "]"))
 			{
-				myCmd[a] = stringList.at(a).c_str();	
+				testCall(stringList);
+				//prevState = true;
 			}
-			myCmd[stringList.size()] = (const char*)NULL;
-			if(stringList.size() != 0)
+			else
 			{
-				execvp(myCmd[0], (char* const*)myCmd);	
+				for(unsigned int a = 0; a < stringList.size(); a++)
+				{
+					myCmd[a] = stringList.at(a).c_str();	
+				}
+				myCmd[stringList.size()] = (const char*)NULL;
+				if(stringList.size() != 0)
+				{
+					execvp(myCmd[0], (char* const*)myCmd);	
+					//prevState = true;
+				}
 			}
 			//return 1;
-		}
+		}	
 		//if token found is "exit", return 1, ending the code
 		//and telling the program to stop prompting the user
 		else if(token == "exit")
@@ -101,11 +184,24 @@ int myShell()
 			}
 			else if(pid == 0)
 			{
-				execvp(myCmd[0], (char* const*)myCmd);
+				if(prevState && stringList.at(0) == "test" || (stringList.at(0) == "[" && stringList.at(stringList.size() - 1) == "]"))
+				{
+					testCall(stringList);
+					exit(12);
+				}
+				else
+				{
+					if(prevState)
+					{
+						execvp(myCmd[0], (char* const*)myCmd);
+					}
+					exit(12);
+				}
 			}
 			else if(pid > 0)
 			{ 
 				wait(&status);
+				prevState = true;
 				stringList.clear();
 			}
 		}
@@ -133,20 +229,55 @@ int myShell()
 			}
 			else if(pid == 0)	//child process
 			{
-				execvp(myCmd[0], (char* const*)myCmd);
-				//if fork fails, exit child process
-				perror("child error");
-				sleep(1);
-				exit(12);	
+				if(prevState && stringList.at(0) == "test" || (stringList.at(0) == "[" && stringList.at(stringList.size() - 1) == "]"))
+				{
+					//if testCall returns 1, indicating failed test command, exit.
+					if(testCall(stringList) == 1)
+					{
+						cout << "Child Error: test command failed." << endl;
+						sleep(1);
+						exit(12);
+					}
+					//exit(12);
+					//stops child branch with execvp() when it succeeds.
+					execvp(myCmd[0], (char* const*)myCmd);	
+				}
+				else
+				{	
+					//runs if given the go-ahead from prevState
+					if(prevState)
+					{
+						//cout << "prevState: " << prevState << endl;
+						execvp(myCmd[0], (char* const*)myCmd);
+						perror("child error");
+						//sleep(1);
+						//exit(12);
+					}
+					//if fork fails, exit child process
+					sleep(1);
+					exit(12);	
+				}
+				//stringList.clear();
 			}
 			else if(pid > 0)	//parent process
 			{
 				wait(&status);	//wait for child to finish
+				stringList.clear();
+				//if child branch exited.
 				if(!WIFEXITED(status) || WEXITSTATUS(status) != 0)
 				{
-					exit(12);	
+					//exit(12);
+					//return 0;
+					prevState = false;
+					if(revert)
+					{
+						prevState = true;
+					}	
 				}
-				stringList.clear();	
+				else
+				{
+					prevState = true;
+				}	
 			}	
 		}
 		//If || connector is found, do the usual load arguments
@@ -157,6 +288,7 @@ int myShell()
 		//continues reading.
 		else if(token == "||")
 		{
+			prevOR = true;
 			for(unsigned int a = 0; a < stringList.size(); a++)
 			{
 				//cout << a << ":" << stringList.at(a) << endl;
@@ -164,9 +296,60 @@ int myShell()
 			}
 			myCmd[stringList.size()] = (const char*)NULL;
 			//fork process for || here
-			execvp(myCmd[0], (char* const*)myCmd);
-			perror("error");
-			stringList.clear();
+			pid_t pid;
+			int status;
+			pid = fork();
+			if(pid < 0)
+			{
+				perror("fork failed");
+				exit(12);
+			}
+			else if(pid == 0)
+			{
+				if(prevState && stringList.at(0) == "test" || (stringList.at(0) == "[" && stringList.at(stringList.size() - 1) == "]"))
+				{
+					if(testCall(stringList) == 1)
+					{
+						cout << "Error: test command failed." << endl;
+						sleep(1);
+						exit(12);
+						//exit(12);
+						//return 0;	
+					}
+					execvp(myCmd[0], (char* const*)myCmd);
+				}
+				else
+				{
+					if(prevState)
+					{
+						execvp(myCmd[0], (char* const*)myCmd);
+						perror("error");
+					}
+					sleep(1);
+					exit(12);
+				}
+				//stringList.clear();
+			}
+			else if(pid > 0)
+			{
+				wait(&status);
+				stringList.clear();
+				if(!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+				{
+					//exit(12);
+					//return 0;
+					prevState = true;
+					if(prevOR)
+					{
+						prevState = false;
+					}	
+				}
+				else
+				{
+					prevState = false;
+					revert = true;
+				}
+			}
 		}
 		//here is where token is continuously pushed into the token
 		//until a connector, comment, or exit is detected.
@@ -183,24 +366,34 @@ int myShell()
 	//Thw while loop naturally stops if there are no more strings to 
 	//read from. So this code here executes whatever is left inside
 	//stringList.
-	for(unsigned int a = 0; a < stringList.size(); a++)
+	if(stringList.at(0) == "test" || (stringList.at(0) == "[" && stringList.at(stringList.size() - 1) == "]"))
 	{
-		myCmd[a] = stringList.at(a).c_str();
+		testCall(stringList);
+		return 0;
 	}
-	myCmd[stringList.size()] = NULL;
-	//printing loop for testing
-	//cout << "Printing last part" << endl;
-	//for(int j = 0; myCmd[j] != NULL; j++)
-	//{
-	//	cout << j << ":" << myCmd[j] << endl;
-	//}
-	
-	//if nothing in stringList, don't try to execute
-	if(stringList.size() != 0)
+	else
 	{
-		execvp((const char*)myCmd[0], (char* const*)myCmd);
-	}
-	return 0;	
+		for(unsigned int a = 0; a < stringList.size(); a++)
+		{
+			myCmd[a] = stringList.at(a).c_str();
+		}
+		myCmd[stringList.size()] = NULL;
+		//printing loop for testing
+		//cout << "Printing last part" << endl;
+		//for(int j = 0; myCmd[j] != NULL; j++)
+		//{
+		//	cout << j << ":" << myCmd[j] << endl;
+		//}
+		
+		//if nothing in stringList, don't try to execute
+		//if(prevState || stringList.size() != 0)
+		if(prevState && stringList.size() != 0)
+		{
+			cout << "Last prevState: " << prevState << endl;
+			execvp((const char*)myCmd[0], (char* const*)myCmd);
+		}
+		return 0;
+	}	
 }
 
 //This function repeats the myShell() using fork() because myShell()
@@ -251,6 +444,15 @@ int shellFork()
 
 int main()
 {
+	/*
+	cout << "Testing testCall function: " << endl;
+	vector<string> strVec;
+	strVec.push_back("[");
+	strVec.push_back("-e");
+	strVec.push_back("/..");
+	strVec.push_back("]");	
+	cout << testCall(strVec) << endl;
+	*/
 	shellFork();
 	return 0;
 }
