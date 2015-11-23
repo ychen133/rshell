@@ -8,6 +8,7 @@
 #include<sys/types.h>
 #include<sys/wait.h>
 #include<vector>
+#include<stack>
 #include<sys/stat.h>
 using namespace std;
 
@@ -103,14 +104,46 @@ int myShell()
 	const char* myCmd[50]; 
 	//found is used to detect # for comments	
 	size_t found;	
-	//a flag to tell program to either run command or not
+	//prevState: a flag to tell program to either run command after connector or not
 	bool prevState = true;
+	//revert: a flag to revert the prevState to fulfill a testcase
 	bool revert = false;
+	//prevOR: flag to tell whether an || operator have a success (mostly used to fulfill testcases)
 	bool prevOR = false;
+	//stack to keep track of precedence
+	stack<bool> precedenceStack;
+	//flag to tell precedenceStack to deque
+	bool stackDeque = false;
 	
 	//while loop reads a string into token one at a time
 	while(ss >> token)
 	{	
+		//looks for "("
+		found = token.find("(");
+		if(found != string::npos)
+		{
+			//pushes prevState onto the top
+			precedenceStack.push(prevState);
+			//cout << "Current top: " << precedenceStack.top() << endl;
+			token = token.substr(found + 1, token.size() - 1);	
+		}
+		//looks for ")"
+		found = token.find(")");
+		if(found != string::npos)
+		{	
+			//checks if there is anything to deque in stack, if not print error
+			if(precedenceStack.size() == 0)
+			{
+				cout << "Error: No content in stack." << endl;
+			}
+			else
+			{	
+				token = token.substr(0, found);
+				stackDeque = true;
+			}
+			//precedenceStack.pop();
+		}
+
 		//When # is found, it ignores whatever comes after
 		//it and returns 1 to indicate the program to ask
 		//the user for another input
@@ -184,7 +217,18 @@ int myShell()
 			}
 			else if(pid == 0)
 			{
-				if(prevState && stringList.at(0) == "test" || (stringList.at(0) == "[" && stringList.at(stringList.size() - 1) == "]"))
+				//checks precedenceStack 
+				if(precedenceStack.size() != 0)
+				{
+					//if precedenceStack says false, set prevState to false to ignore
+					if(precedenceStack.top() == false)
+						prevState = precedenceStack.top();
+					if(stackDeque)
+					{
+						precedenceStack.pop();
+					}
+				}
+				if(prevState && (stringList.at(0) == "test" || (stringList.at(0) == "[" && stringList.at(stringList.size() - 1) == "]")))
 				{
 					testCall(stringList);
 					exit(12);
@@ -212,6 +256,10 @@ int myShell()
 		//If child succeeds, continue to parent process.
 		else if(token == "&&")
 		{
+			//if(prevOR)
+			//{
+			//	prevState = true;
+			//}
 			for(unsigned int a = 0; a < stringList.size(); a++)
 			{	
 				//cout << a << ":" << stringList.at(a) << endl;
@@ -229,7 +277,18 @@ int myShell()
 			}
 			else if(pid == 0)	//child process
 			{
-				if(prevState && stringList.at(0) == "test" || (stringList.at(0) == "[" && stringList.at(stringList.size() - 1) == "]"))
+				//checks precedenceStack 
+				if(precedenceStack.size() != 0)
+				{
+					//if top of stack is false, set prevState to false to ignore command in parenthesis
+					if(precedenceStack.top() == false)	
+						prevState = precedenceStack.top();
+					if(stackDeque)
+					{
+						precedenceStack.pop();
+					}
+				}
+				if(prevState && (stringList.at(0) == "test" || (stringList.at(0) == "[" && stringList.at(stringList.size() - 1) == "]")))
 				{
 					//if testCall returns 1, indicating failed test command, exit.
 					if(testCall(stringList) == 1)
@@ -277,6 +336,11 @@ int myShell()
 				else
 				{
 					prevState = true;
+				}
+				if(prevOR)
+				{
+					prevState = true;
+					prevOR = false;
 				}	
 			}	
 		}
@@ -288,7 +352,6 @@ int myShell()
 		//continues reading.
 		else if(token == "||")
 		{
-			prevOR = true;
 			for(unsigned int a = 0; a < stringList.size(); a++)
 			{
 				//cout << a << ":" << stringList.at(a) << endl;
@@ -306,7 +369,18 @@ int myShell()
 			}
 			else if(pid == 0)
 			{
-				if(prevState && stringList.at(0) == "test" || (stringList.at(0) == "[" && stringList.at(stringList.size() - 1) == "]"))
+				//checks precedenceStack 
+				if(precedenceStack.size() != 0)
+				{
+					//if top of stack is false, ignore the command in parenthesis by setting prevState to false
+					if(precedenceStack.top() == false)	
+						prevState = precedenceStack.top();
+					if(stackDeque)
+					{
+						precedenceStack.pop();
+					}
+				}
+				if(prevState && (stringList.at(0) == "test" || (stringList.at(0) == "[" && stringList.at(stringList.size() - 1) == "]")))
 				{
 					if(testCall(stringList) == 1)
 					{
@@ -323,7 +397,7 @@ int myShell()
 					if(prevState)
 					{
 						execvp(myCmd[0], (char* const*)myCmd);
-						perror("error");
+						perror("child error for ||");
 					}
 					sleep(1);
 					exit(12);
@@ -348,7 +422,9 @@ int myShell()
 				{
 					prevState = false;
 					revert = true;
+					prevOR = true;
 				}
+				//prevOR = true;
 			}
 		}
 		//here is where token is continuously pushed into the token
@@ -386,10 +462,25 @@ int myShell()
 		//}
 		
 		//if nothing in stringList, don't try to execute
-		//if(prevState || stringList.size() != 0)
+
+		if(precedenceStack.size() != 0)
+		{
+			if(precedenceStack.top() == false)
+				prevState = precedenceStack.top();
+			if(stackDeque)
+			{
+				precedenceStack.pop();
+				//for last command in input, check if stack is empty. If not, print error.
+				if(precedenceStack.size() != 0)
+				{
+					cout << "Error: Dangling '('." << endl;
+					return 0;
+				}
+			}
+		}
 		if(prevState && stringList.size() != 0)
 		{
-			cout << "Last prevState: " << prevState << endl;
+			//cout << "Last prevState: " << prevState << endl;
 			execvp((const char*)myCmd[0], (char* const*)myCmd);
 		}
 		return 0;

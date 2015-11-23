@@ -75,4 +75,38 @@ One more correction to the comment detection. If the substring it created is
 equals to "exit" it have the program return 1. This allows the program to
 catch cases like "exit#yolo" or "exit#exit". Hopefully this finishes the 
 comment detection part of the code.
+
+HW#2: 11/22/15
+For homework 2, we had to implement the test command and the precedence operator.
+The test command is designed to test whether a file/directory exists or not in a
+given path. The precedence operator '(' and ')' is designed to group commands together 
+to pass a true or false to indicate whether to run the next command or not. 
+
+In working on this homework, I was able to implment the test command with only
+some minor difficulties. The first challenge was how to implement this since
+execvp() was not allowed. So I created another function called testCall()
+that does the same thing as the test command. This function is called only when 
+the command instruction given matches the framework of a test command call. 
+
+As for the precedence operator, this task was a lot harder. It was very difficult to
+understand the logic of how the bash connector worked so most of my implementation
+regarding this is guesswork. Before implmenting this, I discovered that my connectors
+were not behaving accordingly to what was on the terminal. Trying to copy that behavior
+was very chalenging since I did not know how to implement it. Eventually, I settled
+for having each connector's command run pass a boolean to tell whether or not to try
+running the command after the connector. 
+
+The idea I had seemed like a good idea at first, but it was not able to fully copy 
+the behavior on the terminal. To get the behavior as close to that of the terminal,
+I had to create a bunch of booleans to act as "flags" to tell the connectors what
+to set their prevState, the flag that decides whether to run the next cmd or not. 
+This solution reminded of a Finite State Machine except more messy, but it was the
+best I could do. 
+
+In the end, I was able to copy the logic of the bash terminal's connector and 
+precedence operator, but some testcases still show that my code is imperfect; however,
+it is the closest I could get my code to get. 
+
+
+
        
